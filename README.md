@@ -10,4 +10,5 @@ weights are hosted on Google Drive.
 2. FILE NAME: mopr_hybrid_shape_3050.pth
 3. INSTALLATION: Place the downloaded .pth file directly 
    into the root 'project_iit' folder (same level as app.py).
+   *EITHER MAKE THE FOLDER NAMES AND STRUCTURE SAME, OR CHANGE THE PATH INSIDE CODE*
 ------------------------------------------------------------
