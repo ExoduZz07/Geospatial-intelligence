@@ -171,7 +171,7 @@ with tab1:
                 target_val = int(class_choice.split(" ")[0])
                 viz_img[data == target_val] = color_map.get(target_val, [0, 0, 0])
 
-            st.image(viz_img, caption=f"Previewing: {class_choice}", width='stretch')
+            st.image(viz_img, caption=f"Previewing: {class_choice}", use_container_width=True)
 
 with tab2:
     st.markdown("### 🗄️ Recent Scans")
