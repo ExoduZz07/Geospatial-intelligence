@@ -91,35 +91,27 @@ def apply_color_and_context(raw_img_path, ai_mask_path):
                                 cv2.drawContours(water_filled, [cnt], -1, 255, thickness=cv2.FILLED)
                                 
                     final_patch[(water_filled == 255) & (final_patch == 0) & (~nodata_mask)] = ID_WATER
-                    
+                 
                     # 4. ROADS 
-             
                     shadow_mask = (V < 55).astype(np.uint8) * 255
                     
-                  
                     mask_r1 = cv2.inRange(hsv_blurred, np.array([0, 0, 60]), np.array([180, 35, 170])) 
-                   
                     mask_r2 = cv2.inRange(hsv_blurred, np.array([10, 15, 110]), np.array([25, 75, 230])) 
-                   
                     mask_dirt = cv2.inRange(hsv_blurred, np.array([10, 40, 50]), np.array([35, 180, 210]))
                     
-                
                     road_combined = mask_r1 | mask_r2 | mask_dirt
-                    
                     road_no_shadows = cv2.bitwise_and(road_combined, cv2.bitwise_not(shadow_mask))
                     road_no_buildings = cv2.bitwise_and(road_no_shadows, cv2.bitwise_not(building_mask.astype(np.uint8)*255))
-                
-                    road_base = cv2.morphologyEx(road_no_buildings, cv2.MORPH_OPEN, k_small)
-                    
-                    k_fat = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 25))
-                    fat_farms = cv2.morphologyEx(road_base, cv2.MORPH_OPEN, k_fat)            
-                    fat_farms = cv2.dilate(fat_farms, k_med, iterations=1)
-                    thin_streaks = cv2.bitwise_and(road_base, cv2.bitwise_not(fat_farms))
-                    streaks_connected = cv2.morphologyEx(thin_streaks, cv2.MORPH_CLOSE, k_med)
-                    num_r_labels, r_labels, r_stats, _ = cv2.connectedComponentsWithStats(streaks_connected, connectivity=8)
+                   
+                    k_farm = cv2.getStructuringElement(cv2.MORPH_RECT, (35, 35))
+                    road_thin = cv2.morphologyEx(road_no_buildings, cv2.MORPH_TOPHAT, k_farm)
+                    road_cleaned = cv2.morphologyEx(road_thin, cv2.MORPH_OPEN, k_small)
+                    road_cleaned = cv2.morphologyEx(road_cleaned, cv2.MORPH_CLOSE, k_med)
+                    num_r_labels, r_labels, r_stats, _ = cv2.connectedComponentsWithStats(road_cleaned, connectivity=8)
                     for j in range(1, num_r_labels):
-                        if r_stats[j, cv2.CC_STAT_AREA] >= 800: 
+                        if r_stats[j, cv2.CC_STAT_AREA] >= 150: 
                             final_patch[(r_labels == j) & (final_patch == 0) & (~nodata_mask)] = ID_ROAD
+                    
                     final_patch[nodata_mask] = 0
                     dst.write(final_patch, 1, window=window)
             dst.write_colormap(1, {
