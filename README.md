@@ -1,34 +1,15 @@
-# 🌍 Automated Mapping Engine (GeoAI)
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ExoduZz07/Geospatial-intelligence/blob/main/Geospatial_.ipynb)
-
-## Overview
-Automated AI pipeline for extracting building footprints, road networks, and waterbodies from massive drone orthomosaics. Built for the SVAMITVA Geospatial Hackathon.
-
-This system uses a ResNet18 U-Net backbone combined with a custom **Texture Veto & Spectral Engine** to eliminate false positives. It includes a Streamlit dashboard for real-time, GIS-ready class filtering and can securely handle 2GB+ files.
-
----
-
-## 🚨 CRITICAL: AI MODEL WEIGHTS REQUIRED
-Due to GitHub's file size limits, the trained PyTorch model weights are hosted on Google Drive. **You must have this file for the engine to run.**
-
-* **Download Model:** [mopr_hybrid_shape_3050.pth](https://drive.google.com/file/d/1qYywmgl9I_G2Qm8Q580r2tbtweZcWAd7/view?usp=sharing)
-* **File Name:** `mopr_hybrid_shape_3050.pth`
-
----
-
-## 🚀 How to Run (1-Click Cloud Demo)
-The absolute easiest way to test this pipeline is via Google Colab. No local installation or manual downloading is required.
-
-1. Click the **Open in Colab** badge at the top of this README.
-2. Go to the top menu and select `Runtime` > `Run all`.
-3. The notebook will automatically download the AI weights from Google Drive, install all dependencies, and generate a secure Ngrok tunnel.
-4. Scroll to the bottom of the notebook and click the **STABLE ACCESS LINK** to open the Streamlit dashboard.
-
----
-
-## 💻 Local Installation (For Developers)
-If you prefer to run the engine locally on a Windows/Linux machine with a dedicated GPU:
-```bash
-git clone [https://github.com/ExoduZz07/Geospatial-intelligence.git](https://github.com/ExoduZz07/Geospatial-intelligence.git)
+🌍 TerraScan Hub (GeoAI Engine)High-Resolution Asset Classification via Deep Learning & Contextual GeometryTerraScan Hub is an enterprise-grade AI pipeline built for the SVAMITVA Geospatial Hackathon. It performs automated semantic segmentation to extract building footprints, road networks (paved and unpaved), and hydrology from massive drone orthomosaics.By fusing a ResNet18 U-Net backbone with a custom Geometric Subtraction Engine, this architecture completely eliminates the false positives and spectral confusion commonly found in rural drone telemetry.📺 Proof of Scale (Enterprise Demo)Because traditional cloud deployments crash when handling massive geospatial files, we engineered a serverless bypass. Watch our pipeline process a 10GB+ map instantaneously without browser timeouts:👉 Watch the 10GB+ Enterprise Extraction Demo Here✨ Core Engineering InnovationsInstead of relying purely on pixel color (which fails in complex terrains), we built a custom morphological backend to teach the AI context.♾️ Infinite-Scale Architecture: We bypassed standard Streamlit 200MB upload limits. By running Streamlit dynamically inside a GPU-backed Google Colab and mounting Google Drive as physical storage, the UI reads 10GB+ files instantly via a secure Ngrok tunnel. Zero uploads. Zero latency.🛣️ "Long Streak" Geometric Subtraction: Rural dirt roads and plowed agricultural fields share the exact same spectral signature. To fix this, our pipeline uses a custom cv2.MORPH_TOPHAT algorithm to isolate massive volumetric objects (farms) and literally subtract them from the AI mask, ensuring only high-aspect-ratio linear structures (roads) survive.🧹 U-Net Seam Eradication: Processing 10GB images requires 512x512 windowed chunking. To prevent the AI from hallucinating 1-pixel borders at the edges of these chunks, we implemented a targeted median filter that instantly heals grid seams while preserving sharp building geometry.🔍 Native X-Ray Inspector: Built an interactive spatial viewer directly in the browser using rasterio and cv2.addWeighted. Judges can instantly blend the AI mask with the raw drone telemetry using an adjustable "X-Ray" overlay—no QGIS installation required.🚀 How to Run (Cloud Demo Mode)The absolute easiest way to test this pipeline is via our serverless Google Colab environment. No local installation or manual downloading is required.Step 1: Prepare the DataCreate a folder in your root Google Drive called exactly: TerraScan_DataDrop your massive .tif drone maps into this folder.Step 2: Boot the ServerClick the Open in Colab badge at the top of this README.Go to the top menu and select Runtime > Run all.Allow Colab access to your Google Drive when prompted (this connects the engine to your TerraScan_Data folder).The notebook will automatically download our pre-trained AI weights (mopr_hybrid_shape_3050.pth), install dependencies, and generate a secure tunnel.Step 3: Access the DashboardScroll to the bottom of the Colab notebook.Click the STABLE ACCESS LINK (Ngrok).Select your map from the dropdown and hit Initiate Scan.💻 Local Installation (For Developers)If you prefer to run the engine locally on a machine with a dedicated Nvidia GPU:Bash# 1. Clone the repository
+git clone https://github.com/ExoduZz07/Geospatial-intelligence.git
 cd Geospatial-intelligence
+
+# 2. Install Geospatial & ML Dependencies
+pip install -r requirements.txt
+pip install segmentation-models-pytorch pyngrok gdown
+
+# 3. Download the AI Weights
+# Place 'mopr_hybrid_shape_3050.pth' in the root directory
+gdown 1INNelyEwutO9QAMD_XgNgWpCALZM5fXy -O mopr_hybrid_shape_3050.pth
+
+# 4. Launch the Engine
+streamlit run app.py --server.maxUploadSize 10000
+🗺️ Feature Extraction LegendThe final output is a QGIS-ready .tif raster with the following locked colormap:IDFeature ClassHex ColorUI Indicator1RCC Structures (Concrete)#8C8C8C🟢 Grey2Tin Roofing#00BFFF🔵 Cyan3Tiled Roofing#E15759🔴 Red4Utility Infrastructure#9C27B0🟣 Purple5Hydrology / Water Bodies#4E79A7💧 Blue6Road Networks (Paved & Unpaved)#F2CB6C🟡 Yellow
