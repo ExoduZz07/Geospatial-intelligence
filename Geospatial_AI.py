@@ -97,8 +97,8 @@ def apply_color_and_context(raw_img_path, ai_mask_path):
                                 
                     final_patch[(water_filled == 255) & (final_patch == 0) & (~nodata_mask)] = ID_WATER
                     
-                    # =====================================================================
-                    # 4. ROADS (UPGRADED GEOMETRIC FILTERING)
+                   # =====================================================================
+                    # 4. ROADS (THE ANTI-GLITTER FIX)
                     # =====================================================================
                     shadow_mask = (V < 55).astype(np.uint8) * 255
                     mask_r1 = cv2.inRange(hsv_blurred, np.array([0, 0, 60]), np.array([180, 35, 170])) 
@@ -108,23 +108,23 @@ def apply_color_and_context(raw_img_path, ai_mask_path):
                     road_no_shadows = cv2.bitwise_and(road_combined, cv2.bitwise_not(shadow_mask))
                     road_no_buildings = cv2.bitwise_and(road_no_shadows, cv2.bitwise_not(building_mask.astype(np.uint8)*255))
                     
-                    # THE FIX: Top-Hat transform destroys massive dirt fields, keeping only thin lines
-                    road_thin = cv2.morphologyEx(road_no_buildings, cv2.MORPH_TOPHAT, k_road_max)
+                    # 1. Use a larger kernel (45x45) so we nuke the massive farms but don't shred the roads
+                    k_farm = cv2.getStructuringElement(cv2.MORPH_RECT, (45, 45))
+                    road_thin = cv2.morphologyEx(road_no_buildings, cv2.MORPH_TOPHAT, k_farm)
                     
-                    # Clean up the noise and reconnect the thin lines softly
-                    road_cleaned = cv2.morphologyEx(road_thin, cv2.MORPH_OPEN, k_small)
-                    road_cleaned = cv2.morphologyEx(road_cleaned, cv2.MORPH_CLOSE, k_large) # Replaced k_massive with k_large
+                    # 2. NO MORPH_OPEN! We jump straight to closing the gaps to reconnect the road network
+                    road_reconnected = cv2.morphologyEx(road_thin, cv2.MORPH_CLOSE, k_large)
                     
-                    num_r_labels, r_labels, r_stats, _ = cv2.connectedComponentsWithStats(road_cleaned, connectivity=8)
+                    # 3. Filter out the remaining "glitter" (isolated tiny specks of dirt)
+                    num_r_labels, r_labels, r_stats, _ = cv2.connectedComponentsWithStats(road_reconnected, connectivity=8)
                     for j in range(1, num_r_labels):
-                        # Lowered area threshold to 500 since Top-Hat makes roads thinner
-                        if r_stats[j, cv2.CC_STAT_AREA] >= 500: 
+                        # Boosted the area threshold slightly to clear out the noise
+                        if r_stats[j, cv2.CC_STAT_AREA] >= 300: 
                             final_patch[(r_labels == j) & (final_patch == 0) & (~nodata_mask)] = ID_ROAD
                     
                     # Apply Nodata mask and write patch
                     final_patch[nodata_mask] = 0
                     dst.write(final_patch, 1, window=window)
-            
             # Write Colormap for QGIS
             dst.write_colormap(1, {
                 0: (0,0,0,0), 1: (140,140,140,255), 2: (0,191,255,255), 
