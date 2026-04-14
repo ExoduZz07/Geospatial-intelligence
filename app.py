@@ -87,7 +87,7 @@ st.markdown("""
 with st.sidebar:
     st.markdown("<h1 style='font-size: 3.5rem; margin-bottom: -20px;'>🛰️</h1>", unsafe_allow_html=True)
     st.title("TerraScan Hub")
-    st.caption("SVAMITVA Geospatial AI Engine")
+    st.caption("Geospatial AI Engine")
     st.divider()
     
     st.markdown("### ⚙️ System Telemetry")
