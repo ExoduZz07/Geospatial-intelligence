@@ -48,15 +48,19 @@ gdown 1INNelyEwutO9QAMD_XgNgWpCALZM5fXy -O mopr_hybrid_shape_3050.pth
 
 # Initialize server
 streamlit run app.py --server.maxUploadSize 10000
-## Feature Extraction
+```
 
-The final output is a QGIS-ready `.tif` raster with the following locked colormap:
+---
 
-| ID | Feature Class | Hex Color | UI Indicator |
-| :--- | :--- | :--- | :--- |
-| **1** | RCC Structures (Concrete) | `#8C8C8C` | 🟢 Grey |
-| **2** | Tin Roofing | `#00BFFF` | 🔵 Cyan |
-| **3** | Tiled Roofing | `#E15759` | 🔴 Red |
-| **4** | Utility Infrastructure | `#9C27B0` | 🟣 Purple |
-| **5** | Hydrology / Water Bodies | `#4E79A7` | 💧 Blue |
-| **6** | Road Networks (Paved & Unpaved)| `#F2CB6C` | 🟡 Yellow |
+## OUTPUT MATRIX
+
+Outputs map to a strict 1-channel QGIS-compliant `.tif` raster with embedded colormaps.
+
+| ID | Class Label | Target Hex |
+| :--- | :--- | :--- |
+| `1` | RCC Structures | `#8C8C8C` |
+| `2` | Tin Roofing | `#00BFFF` |
+| `3` | Tiled Roofing | `#E15759` |
+| `4` | Utility Infrastructure | `#9C27B0` |
+| `5` | Hydrology | `#4E79A7` |
+| `6` | Road Networks | `#F2CB6C` |
