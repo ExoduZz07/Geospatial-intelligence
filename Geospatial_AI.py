@@ -5,74 +5,47 @@ import rasterio
 from rasterio.windows import Window
 from tqdm import tqdm
 
-# IDs used for the final QGIS-ready map
 ID_RCC = 1; ID_TIN = 2; ID_TILED = 3; ID_UTILITY = 4; ID_WATER = 5; ID_ROAD = 6
-import os
 
 def apply_color_and_context(raw_img_path, ai_mask_path):
-    print("[1/2] Initializing the Master Context Engine...")
-def apply_color_and_context(original_tif_path, ai_mask_path):
-    """
-    Applies geometric and morphological constraints to clean up AI hallucinations.
-    Specifically targets Class 6 (Roads) to ensure they are narrow and sleek,
-    removing massive farm/field blobs caused by spectral confusion.
-    """
     print("🎨 Initializing Spectral & Contextual Engine...")
-
+    
     village_name = os.path.splitext(os.path.basename(raw_img_path))[0]
-    # --- 1. Setup Output Directory ---
     output_dir = "Final_Outputs"
     os.makedirs(output_dir, exist_ok=True)
     final_map_path = os.path.join(output_dir, f"{village_name}_Final_Map.tif")
-    
-    # Generate a clean output filename based on the original image
-    base_name = os.path.basename(original_tif_path).replace(".tif", "_Extraction.tif")
-    output_path = os.path.join(output_dir, base_name)
 
-    # --- 2. Load the Raw AI Mask ---
-    with rasterio.open(ai_mask_path) as src:
-        meta = src.meta.copy()
-        mask_data = src.read(1)
-
-   
+    # Fast kernels only to prevent 50-minute loading times
     k_small = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     k_med = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
     k_large = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
-    k_massive = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (21, 21))
-  
-    road_mask = (mask_data == 6).astype(np.uint8)
 
     with rasterio.open(raw_img_path) as src_raw, rasterio.open(ai_mask_path) as src_ai:
         meta = src_ai.meta.copy()
-     
         meta.update({"count": 1, "dtype": 'uint8', "compress": 'lzw', "nodata": 0})
         
         with rasterio.open(final_map_path, 'w', **meta) as dst:
-            for y in tqdm(range(0, src_raw.height, 512), desc="Applying Pixel Logic"):
+            for y in tqdm(range(0, src_raw.height, 512), desc="Applying Logic"):
                 for x in range(0, src_raw.width, 512):
                     h, w = min(512, src_raw.height - y), min(512, src_raw.width - x)
                     window = Window(x, y, w, h)
                     
-                
                     raw_patch = np.moveaxis(src_raw.read([1, 2, 3], window=window), 0, -1)
                     bgr_patch = cv2.cvtColor(raw_patch, cv2.COLOR_RGB2BGR)
                     
                     bgr_blurred = cv2.medianBlur(bgr_patch, 7)
                     hsv_blurred = cv2.cvtColor(bgr_blurred, cv2.COLOR_BGR2HSV)
                     
-                    ai_patch = src_ai.read(1, window=window)
+                    ai_patch = cv2.medianBlur(src_ai.read(1, window=window), 3)
                     final_patch = np.zeros_like(ai_patch)
                     
-                  
                     nodata_mask = np.all(raw_patch <= 15, axis=-1) | np.all(raw_patch >= 240, axis=-1)
                     
-             
                     final_patch[ai_patch == 2] = ID_UTILITY
-            
+                    
                     grass_mask = cv2.inRange(hsv_blurred, np.array([30, 40, 40]), np.array([85, 255, 255]))
                     ai_patch[(ai_patch == 1) & (grass_mask == 255)] = 0
                     
-                    # 2. ROOFTOP MATERIAL
                     building_mask = (ai_patch == 1)
                     H, S, V = hsv_blurred[:,:,0], hsv_blurred[:,:,1], hsv_blurred[:,:,2]
                     
@@ -85,7 +58,6 @@ def apply_color_and_context(original_tif_path, ai_mask_path):
                     final_patch[building_mask & is_tin] = ID_TIN
                     final_patch[building_mask & (~is_tiled) & (~is_tin)] = ID_RCC
                     
-                    # 3. WATERBODIES
                     mask_w1 = cv2.inRange(hsv_blurred, np.array([85, 40, 30]), np.array([135, 255, 255]))
                     mask_w2 = cv2.inRange(hsv_blurred, np.array([10, 15, 10]), np.array([50, 150, 90]))
                     water_combined = cv2.bitwise_or(mask_w1, mask_w2)
@@ -112,56 +84,33 @@ def apply_color_and_context(original_tif_path, ai_mask_path):
                                 
                     final_patch[(water_filled == 255) & (final_patch == 0) & (~nodata_mask)] = ID_WATER
                     
-                    # 4. ROADS
+                    # --- FAST ROAD LOGIC ---
                     shadow_mask = (V < 55).astype(np.uint8) * 255
+                    
                     mask_r1 = cv2.inRange(hsv_blurred, np.array([0, 0, 60]), np.array([180, 35, 170])) 
                     mask_r2 = cv2.inRange(hsv_blurred, np.array([10, 15, 110]), np.array([25, 75, 230])) 
-                    road_combined = cv2.bitwise_or(mask_r1, mask_r2)
+                    mask_dirt = cv2.inRange(hsv_blurred, np.array([10, 40, 50]), np.array([35, 180, 210]))
                     
+                    road_combined = mask_r1 | mask_r2 | mask_dirt
                     road_no_shadows = cv2.bitwise_and(road_combined, cv2.bitwise_not(shadow_mask))
                     road_no_buildings = cv2.bitwise_and(road_no_shadows, cv2.bitwise_not(building_mask.astype(np.uint8)*255))
                     
+                    # Lightweight noise removal
                     road_cleaned = cv2.morphologyEx(road_no_buildings, cv2.MORPH_OPEN, k_small)
-                    road_cleaned = cv2.morphologyEx(road_cleaned, cv2.MORPH_CLOSE, k_massive)
+                    road_cleaned = cv2.morphologyEx(road_cleaned, cv2.MORPH_CLOSE, k_large)
                     
                     num_r_labels, r_labels, r_stats, _ = cv2.connectedComponentsWithStats(road_cleaned, connectivity=8)
                     for j in range(1, num_r_labels):
-                        if r_stats[j, cv2.CC_STAT_AREA] >= 1000: 
+                        if r_stats[j, cv2.CC_STAT_AREA] >= 500: 
                             final_patch[(r_labels == j) & (final_patch == 0) & (~nodata_mask)] = ID_ROAD
                     
                     final_patch[nodata_mask] = 0
                     dst.write(final_patch, 1, window=window)
             
-            # Write Colormap for QGIS
             dst.write_colormap(1, {
                 0: (0,0,0,0), 1: (140,140,140,255), 2: (0,191,255,255), 
                 3: (225,87,89,255), 4: (156,39,176,255), 5: (78,121,167,255), 6: (242,203,108,255)
             })
-  
-    kernel_size = 25 
-    tophat_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
-    thin_roads = cv2.morphologyEx(road_mask, cv2.MORPH_TOPHAT, tophat_kernel)
-
-  
-    smooth_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-    sleek_roads = cv2.morphologyEx(thin_roads, cv2.MORPH_CLOSE, smooth_kernel)
-
-
-    mask_data[mask_data == 6] = 0 
-
-    mask_data[sleek_roads == 1] = 6
-
- 
-    # 💾 SAVE & EXPORT
-  
-    
-    # Compress the output to save space
-    meta.update({"compress": "lzw"})
-    
-    with rasterio.open(output_path, 'w', **meta) as dst:
-        dst.write(mask_data, 1)
 
     print(f"\n🏆 FINAL MAP SAVED: {final_map_path}")
     return final_map_path
-    print(f"✅ Geometric constraints applied. Saved to: {output_path}")
-    return output_path
